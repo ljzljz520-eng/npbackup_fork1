@@ -2124,10 +2124,14 @@ class NPBackupRunner:
                 )
                 logger.debug("Trace", exc_info=True)
                 result = False
+            if isinstance(result, dict):
+                op_success = result.get("result", False)
+            else:
+                op_success = bool(result)
             if self.json_output:
                 js["output"].append({repo_name: result})
             else:
-                if result:
+                if op_success:
                     self.write_logs(
                         f"Finished {operation} for repo {repo_name}", level="info"
                     )
@@ -2136,7 +2140,7 @@ class NPBackupRunner:
                         f"Operation {operation} failed for repo {repo_name}",
                         level="error",
                     )
-            if not result:
+            if not op_success:
                 group_result = False
         self.write_logs("Finished execution of group operations", level="info")
         if self.json_output:
