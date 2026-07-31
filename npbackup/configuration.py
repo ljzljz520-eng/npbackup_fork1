@@ -1396,7 +1396,7 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
                     logger.info("Successfully migrated encryption key")
                     other_keys_work = True
                     break
-        if PUBLIC_AES_KEYS_FOR_PRIVATE_MIGRATION:
+        if not other_keys_work and PUBLIC_AES_KEYS_FOR_PRIVATE_MIGRATION:
             for public_key in PUBLIC_AES_KEYS_FOR_PRIVATE_MIGRATION:
                 full_config = crypt_config(
                     full_config,
@@ -1414,12 +1414,8 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
                     logger.info("Successfully migrated encryption key with public key")
                     other_keys_work = True
                     break
-            if not other_keys_work:
-                msg = "None of our earlier encryption keys did work."
-                logger.critical(msg)
-                raise EnvironmentError(msg)
-        else:
-            msg = "Cannot decrypt config file"
+        if not other_keys_work:
+            msg = "None of our earlier encryption keys did work."
             logger.critical(msg)
             raise EnvironmentError(msg)
     else:
