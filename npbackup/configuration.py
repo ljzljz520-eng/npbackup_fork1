@@ -1380,36 +1380,38 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
         if EARLIER_AES_KEYS:
             logger.info("Trying to migrate encryption key")
             for earlier_key in EARLIER_AES_KEYS:
-                full_config = crypt_config(
+                _migrated_config = crypt_config(
                     full_config,
                     earlier_key,
                     ENCRYPTED_OPTIONS,
                     operation="decrypt",
                     obfuscation_fn=obfuscation,
                 )
-                if full_config is False:
+                if _migrated_config is False:
                     msg = "Cannot decrypt config file. Looks like our keys don't match."
                     logger.info(msg)
 
                 else:
+                    full_config = _migrated_config
                     config_file_is_updated = True
                     logger.info("Successfully migrated encryption key")
                     other_keys_work = True
                     break
         if not other_keys_work and PUBLIC_AES_KEYS_FOR_PRIVATE_MIGRATION:
             for public_key in PUBLIC_AES_KEYS_FOR_PRIVATE_MIGRATION:
-                full_config = crypt_config(
+                _migrated_config = crypt_config(
                     full_config,
                     public_key,
                     ENCRYPTED_OPTIONS,
                     operation="decrypt",
                     obfuscation_fn=public_obfuscation,
                 )
-                if full_config is False:
+                if _migrated_config is False:
                     msg = "Cannot decrypt config file with public key. Looks like our keys don't match."
                     logger.info(msg)
 
                 else:
+                    full_config = _migrated_config
                     config_file_is_updated = True
                     logger.info("Successfully migrated encryption key with public key")
                     other_keys_work = True
