@@ -148,11 +148,6 @@ def parse_restic_repo(repo_uri: str) -> dict:
         - backend-specific fields
         """
 
-        def strip_ipv6_brackets(host: Optional[str]) -> Optional[str]:
-            if host and host.startswith("[") and host.endswith("]"):
-                return host[1:-1]
-            return host
-
         def _parse_rest(rest: str) -> dict:
             parsed = urlparse(rest)
             if parsed.scheme not in ("http", "http+unix", "https", "https+unix"):
