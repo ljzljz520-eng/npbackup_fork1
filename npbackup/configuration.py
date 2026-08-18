@@ -745,8 +745,15 @@ def inject_permissions_into_full_config(full_config: CommentedMap) -> CommentedM
                     f"{object_type}.{object_name}.repo_uri",
                     (repo_uri, new_permissions, new_manager_password),
                 )
-                full_config.s(f"{object_type}.{object_name}.is_protected", True)
-                logger.info(f"New permissions set for {object_type} {object_name}")
+                # is_protected should only reflect an actual password, not an
+                # explicit opt-out (new_manager_password == False)
+                if new_manager_password:
+                    full_config.s(f"{object_type}.{object_name}.is_protected", True)
+                    logger.info(f"New permissions set for {object_type} {object_name}")
+                else:
+                    logger.info(
+                        f"Password manager disabled for {object_type} {object_name}"
+                    )
             elif new_manager_password:
                 logger.critical(
                     f"Cannot set new permissions for {object_type} {object_name} without current manager password"
