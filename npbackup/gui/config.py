@@ -1209,9 +1209,6 @@ def config_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap:
                 _t("config_gui.select_a_retention_policy_preset")
             )
 
-        window["-RETENTION-POLICY-ADVANCED-COLUMN-"].update(visible=True)
-        window["-RETENTION-POLICY-ADVANCED-"].update(visible=False)
-
         if event in ("-OBJECT-SELECT-", "repo_group"):
             # Update full_config with current object before updating
             full_config = npbackup.gui.common_gui_logic.update_config_dict(
