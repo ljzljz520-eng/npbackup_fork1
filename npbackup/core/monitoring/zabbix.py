@@ -280,7 +280,10 @@ class ZabbixMonitor(MonitoringBackend):
 
         # When using RawJSON, we need to send data twice for a collector to create the corresponding host
         if self.zabbix_send_method == "RawJSON" and self.zabbix_raw_json_collector_host:
-            collector_discovery_key = (zabbix_server, self.zabbix_raw_json_collector_host)
+            collector_discovery_key = (
+                zabbix_server,
+                self.zabbix_raw_json_collector_host,
+            )
             if collector_discovery_key not in ZABBIX_DISCOVERY_SENT:
                 ZABBIX_DISCOVERY_SENT.add(collector_discovery_key)
                 logger.info(
