@@ -490,7 +490,7 @@ This is free software, and you are welcome to redistribute it under certain cond
     try:
         auto_upgrade = full_config["global_options"]["auto_upgrade"]
     except KeyError:
-        auto_upgrade = True
+        auto_upgrade = False
     try:
         auto_upgrade_percent_chance = full_config["global_options"][
             "auto_upgrade_percent_chance"
