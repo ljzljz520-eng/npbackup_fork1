@@ -1486,6 +1486,10 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
 
 def save_config(config_file: Path, full_config: CommentedMap) -> bool:
     try:
+        # Work on a copy: inject_permissions_into_full_config() mutates its
+        # argument in place (deletes permissions/manager_password/etc.), and we
+        # must not leave the caller's live config object in that state
+        full_config = deepcopy(full_config)
         full_config = inject_permissions_into_full_config(full_config)
         full_config.s("audience", CURRENT_AUDIENCE)
         if not is_encrypted(full_config):
