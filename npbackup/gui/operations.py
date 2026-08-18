@@ -678,8 +678,8 @@ def operations_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap
                                 error = data["reason"]
                             except KeyError:
                                 error = ""
-                            error += f"\n{data['additional_error_info']}\n{data['additional_warning_info']}"
-                            popup_error(data["reason"])
+                            error += f"\n{data.get('additional_error_info', '')}\n{data.get('additional_warning_info', '')}"
+                            popup_error(error)
                     except Exception as exc:
                         popup_error(_t("generic.failure") + f": {exc}")
             else:
