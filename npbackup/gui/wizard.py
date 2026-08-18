@@ -1471,12 +1471,9 @@ def start_wizard(
             if current_tab < NUMBER_OF_TABS:
                 current_tab += 1
                 set_active_tab(current_tab)
-            elif current_tab == NUMBER_OF_TABS:
-                sg.popup(
-                    _t("wizard_gui.thank_you") + f" {SHORT_PRODUCT_NAME}",
-                    keep_on_top=True,
-                )
-                # We won't break here since we need to save config from gui
+            # current_tab == NUMBER_OF_TABS is already fully handled above
+            # (## WIZARD STEP 7 ##), which always breaks or continues before
+            # reaching here
         if event == "-PREVIOUS-":
             if current_tab > 1:
                 current_tab -= 1
