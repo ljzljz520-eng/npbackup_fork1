@@ -12,8 +12,10 @@ __build__ = "2025021401"
 
 import os
 import sys
+import re
 import glob
 from logging import getLogger
+from packaging.version import parse as version_parse, InvalidVersion
 from npbackup.__version__ import IS_LEGACY
 from npbackup.path_helper import BASEDIR
 
@@ -60,12 +62,23 @@ def get_restic_internal_binary(arch: str) -> str:
         logger.debug("Internal binary directory not set")
         return None
     if binary:
-        guessed_path = glob.glob(os.path.join(RESTIC_SOURCE_FILES_DIR, binary))
-        if guessed_path:
-            # Take glob results reversed so we get newer version
-            # Does not always compute, but is g00denough(TM) for our dev
-            return guessed_path[-1]
+        guessed_paths = glob.glob(os.path.join(RESTIC_SOURCE_FILES_DIR, binary))
+        if guessed_paths:
+
+            def _binary_version(path: str):
+                match = re.search(r"restic_([\d.]+)_", os.path.basename(path))
+                if match:
+                    try:
+                        return version_parse(match.group(1))
+                    except InvalidVersion:
+                        pass
+                return version_parse("0")
+
+            # Sort by actual restic version so we reliably pick the newest one,
+            # instead of relying on filesystem/glob ordering
+            guessed_paths.sort(key=_binary_version)
+            return guessed_paths[-1]
         logger.debug(
-            f"Could not find internal restic binary, guess {os.path.join(RESTIC_SOURCE_FILES_DIR, binary)} in {guessed_path}"
+            f"Could not find internal restic binary, guess {os.path.join(RESTIC_SOURCE_FILES_DIR, binary)} in {guessed_paths}"
         )
     return None
