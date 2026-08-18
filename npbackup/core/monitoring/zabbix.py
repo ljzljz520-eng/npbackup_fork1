@@ -26,7 +26,7 @@ try:
 except ImportError:
     ZABBIX_AVAILABLE = False
 
-ZABBIX_DISCOVERY_SENT = False
+ZABBIX_DISCOVERY_SENT = set()
 
 try:
     import ssl
@@ -262,10 +262,13 @@ class ZabbixMonitor(MonitoringBackend):
             # As for now, let's just be full stupid cand keep a global variable around
             # Btw, 10 seconds isn't sufficient on our test server
 
-            # Plain stupid global variable here...
-            # We would need to keep track of discovery sent per target somehow
-            if not ZABBIX_DISCOVERY_SENT:
-                ZABBIX_DISCOVERY_SENT = True
+            # Discovery only needs to be (re-)sent once per distinct Zabbix
+            # host (instance), not once per process, otherwise group/multi-repo
+            # runs targeting several Zabbix hosts would only discover the first one
+            instance = self.common_labels.get("instance", "default_instance")
+            discovery_key = (zabbix_server, instance)
+            if discovery_key not in ZABBIX_DISCOVERY_SENT:
+                ZABBIX_DISCOVERY_SENT.add(discovery_key)
                 logger.info(
                     f"Sent Zabbix discovery data. Sleeping {self.zabbix_discovery_wait_time} seconds to allow Zabbix server to process data before sending metrics"
                 )
@@ -277,8 +280,9 @@ class ZabbixMonitor(MonitoringBackend):
 
         # When using RawJSON, we need to send data twice for a collector to create the corresponding host
         if self.zabbix_send_method == "RawJSON" and self.zabbix_raw_json_collector_host:
-            if not ZABBIX_DISCOVERY_SENT:
-                ZABBIX_DISCOVERY_SENT = True
+            collector_discovery_key = (zabbix_server, self.zabbix_raw_json_collector_host)
+            if collector_discovery_key not in ZABBIX_DISCOVERY_SENT:
+                ZABBIX_DISCOVERY_SENT.add(collector_discovery_key)
                 logger.info(
                     f"Sending to Zabbix as {self.zabbix_send_method} with raw json collector host {self.zabbix_raw_json_collector_host}. Now waiting {self.zabbix_discovery_wait_time} seconds for Zabbix server to be able to process our data."
                 )
