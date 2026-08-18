@@ -1497,7 +1497,19 @@ def handle_gui_events(
     if event == "-REMOVE-SOURCE-":
         selected_items = values["backup_opts.paths"]
         tree = backup_paths_tree
+        if object_type == "repos" and object_name:
+            _, config_inheritance = npbackup.configuration.get_repo_config(
+                full_config, object_name, eval_variables=False
+            )
+        else:
+            config_inheritance = None
+        inherited_paths = (
+            config_inheritance.g("backup_opts.paths") if config_inheritance else None
+        )
         for item in selected_items:
+            if isinstance(inherited_paths, dict) and inherited_paths.get(item):
+                popup_error(_t("config_gui.cannot_remove_group_inherited_settings"))
+                continue
             tree.delete(item)
         window["backup_opts.paths"].update(values=tree)
         return
