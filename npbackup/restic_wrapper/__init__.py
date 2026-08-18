@@ -840,8 +840,16 @@ class ResticRunner:
                 re.IGNORECASE,
             ):
                 self.write_logs("Repo initialized successfully", level="info")
-                self.is_init = True
-                return True
+            else:
+                # restic exited successfully, but the output didn't match any known
+                # success message (different restic version/locale). Trust the exit
+                # code rather than reporting a successful init as a failure.
+                self.write_logs(
+                    "Repo initialized successfully (unrecognized restic output format)",
+                    level="warning",
+                )
+            self.is_init = True
+            return True
         else:
             if re.search(
                 ".*already exists|.*already initialized", str(output), re.IGNORECASE
