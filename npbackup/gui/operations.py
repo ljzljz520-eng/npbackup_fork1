@@ -179,6 +179,9 @@ def task_scheduler(config_file: Path, full_config: CommentedMap) -> None:
             result = npbackup.task.delete_scheduled_task(
                 config_file, task_type, object_type, object_name
             )
+            if not result:
+                popup_error(_t("config_gui.scheduled_task_deletion_failure"))
+                continue
             tasks = npbackup.gui.common_gui_logic.update_task_list(
                 config_file, full_config, window
             )
