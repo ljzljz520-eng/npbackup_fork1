@@ -251,6 +251,15 @@ def auto_upgrader(
                 return False
 
     for file_type in ("script", "archive"):
+        if not file_info[file_type]:
+            # No file description was found for this type (eg no upgrade script
+            # available server-side). Skip the download and fall back to whatever
+            # downstream logic handles a missing local_fs_path (eg inline script).
+            logger.info(
+                f"No {file_type} file description available. Skipping download."
+            )
+            file_info[file_type] = {"local_fs_path": None}
+            continue
         logger.info(f"Downloading {file_type} file for target {target_id}")
         file_info[file_type]["local_fs_path"] = None
         file_data[file_type] = requestor.requestor(
