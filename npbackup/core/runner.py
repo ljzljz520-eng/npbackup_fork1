@@ -1904,7 +1904,9 @@ class NPBackupRunner:
         if isinstance(result, bool):
             js["result"] = result
         else:
-            js["result"] = result.get("result", False) if isinstance(result, dict) else False
+            js["result"] = (
+                result.get("result", False) if isinstance(result, dict) else False
+            )
             js["detail"] = {
                 "unlock": unlock_result,
                 "check": check_result,
