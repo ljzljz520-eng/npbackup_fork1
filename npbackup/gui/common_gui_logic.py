@@ -1968,5 +1968,5 @@ def retention_policy_preset_name(
                     if policy_matches:
                         return policy_name
                 except KeyError:
-                    break
+                    continue
     return None
