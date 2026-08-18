@@ -1294,7 +1294,6 @@ def config_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap:
 
         if event == "--ACCEPT--":
             if object_type != "groups":
-                result = _t("generic.yes")
                 if not values["repo_uri"]:
                     result = sg.popup(
                         _t("config_gui.repo_uri_should_not_be_empty")
@@ -1305,6 +1304,8 @@ def config_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap:
                         custom_text=(_t("generic.no"), _t("generic.yes")),
                         title=_t("generic.warning").capitalize(),
                     )
+                    if result != _t("generic.yes"):
+                        continue
                 else:
                     try:
                         repo_uri = values["repo_uri"]
@@ -1334,6 +1335,8 @@ def config_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap:
                         custom_text=(_t("generic.no"), _t("generic.yes")),
                         title=_t("generic.warning").capitalize(),
                     )
+                    if result != _t("generic.yes"):
+                        continue
                 # We need to check that sg.TreeData for backups contains at least one object
                 # At this point we need to reference the window object since backup_paths_tree isn't populated yet
                 # TreeData will at least contain the root node, so we need to check for more than one entry
@@ -1354,8 +1357,8 @@ def config_gui(full_config: CommentedMap, config_file: Path) -> CommentedMap:
                         custom_text=(_t("generic.no"), _t("generic.yes")),
                         title=_t("generic.warning").capitalize(),
                     )
-                if result != _t("generic.yes"):
-                    continue
+                    if result != _t("generic.yes"):
+                        continue
             if npbackup.gui.common_gui_logic.validate_email_addresses(window) is False:
                 result = sg.popup(
                     _t("config_gui.there_are_invalid_email_addresses")
