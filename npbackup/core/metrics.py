@@ -98,13 +98,13 @@ def metric_analyser(
                         )
                     except KeyError:
                         pass
-                    except ValueError:
+                    except (ValueError, TypeError):
                         logger.error("Missing processed bytes information from backup")
                     try:
                         modified_files = int(restic_json["files_changed"])
                     except KeyError:
                         pass
-                    except TypeError:
+                    except (ValueError, TypeError):
                         logger.error(
                             "Missing number of modified files information from backup"
                         )
