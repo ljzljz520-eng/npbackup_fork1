@@ -542,7 +542,7 @@ This is free software, and you are welcome to redistribute it under certain cond
         full_concurrency = False
     repo_aware_concurrency = full_config.g("global_options.repo_aware_concurrency")
     if repo_aware_concurrency is None:
-        repo_aware_concurrency = True
+        repo_aware_concurrency = False
 
     # Prepare program run
     cli_args = {
