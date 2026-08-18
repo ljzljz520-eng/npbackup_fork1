@@ -597,16 +597,23 @@ class ResticRunner:
             # Since errors are always shown, we don't need restic --verbose option explicitly
 
             # We enhanced the error detection with :.*cloud.* since Windows can't have ':' in filename, it should be safe to use
-            is_cloud_error = True
+            # Default to False: if we can't positively identify at least one recognized
+            # cloud-error line, we must not silently treat exit_code 3 as a success
+            is_cloud_error = False
+            found_error_line = False
             for line in output.split("\n"):
                 if re.match("error", line, re.IGNORECASE):
-                    if not re.match(
+                    found_error_line = True
+                    if re.match(
                         r"error: read .*: The cloud operation is not supported on a read-only volume\.|error: read .*: The media is write protected\.|error: read .*:.*cloud.*",
                         line,
                         re.IGNORECASE,
                     ):
+                        is_cloud_error = True
+                    else:
                         is_cloud_error = False
-            if is_cloud_error is True:
+                        break
+            if found_error_line and is_cloud_error:
                 self.last_command_status = True
                 return True, output
             self.write_logs("Some files could not be backed up", level="error")
