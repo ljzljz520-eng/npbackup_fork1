@@ -347,7 +347,9 @@ async def upgrades(
     )
     try:
         result = crud.get_file(config_dict, file)
-        if not result:
+        # crud.get_file() always returns a (truthy) FileSend object here since
+        # content=False; a missing artefact is signaled via sha256sum=None
+        if not result or result.sha256sum is None:
             raise HTTPException(status_code=404, detail="Not found")
         return result
     except HTTPException:
