@@ -147,6 +147,11 @@ class NPBackupRunner:
         # This shouldn't interfere with produce_metrics
         self._backup_needs_metrics = True
 
+        # Size/heuristics checks computed by backup(), consumed once by the
+        # @metrics pass which sends them. None means "not computed for this
+        # operation", which is not the same as "computed and all clear"
+        self.backup_size_checks = None
+
     @property
     def repo_config(self) -> dict:
         return self._repo_config
@@ -682,6 +687,7 @@ class NPBackupRunner:
                     append_metrics_file=self.append_metrics_file,
                     exec_time=self.exec_time,
                     only_check_backup_result_and_size=False,
+                    backup_size_checks=getattr(self, "backup_size_checks", None),
                 )
 
                 # We need to reset backup result content once it's parsed
@@ -689,6 +695,8 @@ class NPBackupRunner:
                     self.restic_runner.backup_result_content = None
                 except AttributeError:
                     pass
+                # Size checks are one-shot, see @metrics
+                self.backup_size_checks = None
                 # We need to append to metric file once we begin writing to it
                 self.append_metrics_file = True
                 if self.json_output:
@@ -730,6 +738,7 @@ class NPBackupRunner:
                     append_metrics_file=self.append_metrics_file,
                     exec_time=self.exec_time,
                     only_check_backup_result_and_size=False,
+                    backup_size_checks=getattr(self, "backup_size_checks", None),
                 )
                 # We need to reset backup result content once it's parsed
                 try:
@@ -746,6 +755,9 @@ class NPBackupRunner:
 
             # Make sure on next run we need metrics again
             self.backup_needs_metrics = True
+            # Size checks are one-shot: clear them unconditionally, so a later
+            # operation cannot report a previous backup's results as its own
+            self.backup_size_checks = None
             return result
 
         return wrapper
@@ -1609,6 +1621,18 @@ class NPBackupRunner:
                 "Backup has too many modified files compared to previous backup",
                 level="warning",
             )
+
+        # Hand the size checks to the @metrics pass, which sends metrics but does
+        # not compute these. Without this the four npbackup_*size/heuristics
+        # metrics are always 0 on every monitoring backend.
+        # Consumed and cleared by @metrics / @catch_exceptions so one operation's
+        # results can never be reported against another.
+        self.backup_size_checks = (
+            backup_sub_min_size,
+            backup_heuristics_sub_min_size,
+            backup_heuristics_over_size,
+            backup_heuristics_too_many_modified_files,
+        )
 
         operation_result = (
             result

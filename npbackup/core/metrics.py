@@ -37,6 +37,7 @@ def metric_analyser(
     append_metrics_file: bool,
     exec_time: Optional[float] = None,
     only_check_backup_result_and_size: bool = False,
+    backup_size_checks: Optional[Tuple[bool, bool, bool, bool]] = None,
 ) -> Tuple[bool, bool, bool, bool, bool]:
     """
     Tries to get operation success and backup size checks from restic output
@@ -48,10 +49,24 @@ def metric_analyser(
         "action": operation,
     }
 
-    backup_sub_min_size = False
-    backup_heuristics_sub_min_size = False
-    backup_heuristics_over_size = False
-    backup_heuristics_too_many_modified_files = False
+    # This function is called twice per backup: once with
+    # only_check_backup_result_and_size=True, which computes the size checks and
+    # returns them without sending anything, and once with it False, which sends
+    # metrics but does not compute them (the computation is gated below).
+    # The sending pass therefore has to be handed the results of the computing
+    # pass, otherwise the four npbackup_*size/heuristics metrics are always 0.
+    if backup_size_checks:
+        (
+            backup_sub_min_size,
+            backup_heuristics_sub_min_size,
+            backup_heuristics_over_size,
+            backup_heuristics_too_many_modified_files,
+        ) = backup_size_checks
+    else:
+        backup_sub_min_size = False
+        backup_heuristics_sub_min_size = False
+        backup_heuristics_over_size = False
+        backup_heuristics_too_many_modified_files = False
 
     try:
         metrics = {}
