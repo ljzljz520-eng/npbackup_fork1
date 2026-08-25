@@ -109,7 +109,7 @@ class HealthchecksioMonitor(MonitoringBackend):
         state_names = {0: "Success", 1: "Warning", 2: "Error", 3: "Critical"}
         lines.append(f"Status: {state_names.get(exec_state, 'Unknown')}")
 
-        if metrics["npbackup_exec_time"] is not None:
+        if metrics.get("npbackup_exec_time") is not None:
             lines.append(f"Execution time: {metrics['npbackup_exec_time']:.2f}s")
 
         # Add backup-specific metrics if available
@@ -125,21 +125,23 @@ class HealthchecksioMonitor(MonitoringBackend):
                     else:  # KB
                         lines.append(f"Data processed: {bytes_val / 1024:.2f} KB")
 
-            if "restic_files" in metrics:
-                lines.append(f"New files: {metrics['restic_files']['new']}")
-                lines.append(f"Changed files: {metrics['restic_files']['changed']}")
-                lines.append(
-                    f"Unmodified files: {metrics['restic_files']['unmodified']}"
-                )
-                lines.append(f"Total files: {metrics['restic_files']['total']}")
-            if "restic_dirs" in metrics:
-                lines.append(f"New directories: {metrics['restic_dirs']['new']}")
-                lines.append(
-                    f"Changed directories: {metrics['restic_dirs']['changed']}"
-                )
-                lines.append(
-                    f"Unmodified directories: {metrics['restic_dirs']['unmodified']}"
-                )
+            for label, sub_metric in (
+                ("New files", "new"),
+                ("Changed files", "changed"),
+                ("Unmodified files", "unmodified"),
+                ("Total files", "total"),
+            ):
+                value = metrics.get("restic_files", {}).get(sub_metric)
+                if value is not None:
+                    lines.append(f"{label}: {value}")
+            for label, sub_metric in (
+                ("New directories", "new"),
+                ("Changed directories", "changed"),
+                ("Unmodified directories", "unmodified"),
+            ):
+                value = metrics.get("restic_dirs", {}).get(sub_metric)
+                if value is not None:
+                    lines.append(f"{label}: {value}")
 
         return "\n".join(lines)
 

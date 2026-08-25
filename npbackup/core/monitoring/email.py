@@ -227,6 +227,8 @@ class EmailMonitor(MonitoringBackend):
             metrics["npbackup_storage_heuristics_too_low"] = False
         if not "npbackup_storage_heuristics_too_high" in metrics:
             metrics["npbackup_storage_heuristics_too_high"] = False
+        if not "npbackup_storage_heuristics_too_many_modified_files" in metrics:
+            metrics["npbackup_storage_heuristics_too_many_modified_files"] = False
 
         if metrics["npbackup_exec_state"] == 3:
             body += "\nStatus: Critical error"
@@ -247,6 +249,10 @@ class EmailMonitor(MonitoringBackend):
             )
         if metrics["npbackup_storage_heuristics_too_high"]:
             body += "\nStatus: Backup larger than expected compared to previous backups"
+        # An unusual number of modified files is the ransomware signal, so it must
+        # be surfaced like the three size checks above
+        if metrics["npbackup_storage_heuristics_too_many_modified_files"]:
+            body += "\nStatus: More files modified than expected compared to previous backups"
 
         # Add timestamp
         from datetime import datetime, timezone
