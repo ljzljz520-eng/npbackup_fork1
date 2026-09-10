@@ -7,7 +7,7 @@ __intname__ = "npbackup.core.runner"
 __author__ = "Orsiris de Jong"
 __copyright__ = "Copyright (C) 2022-2026 NetInvent"
 __license__ = "GPL-3.0-only"
-__build__ = "2026042501"
+__build__ = "2026091001"
 
 
 from typing import Optional, Callable, Union, List
@@ -1514,6 +1514,14 @@ class NPBackupRunner:
                         "Not all files/folders are present in backup source",
                         level="error",
                     )
+
+            # Also try to unlock before backup process actual start
+            result = self.restic_runner.unlock()
+            if not result:
+                self.write_logs(
+                    f"Restic unlock result: {result}",
+                    level="warning",
+                )
 
             # Run actual backup here
             if source_type in (
