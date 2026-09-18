@@ -45,6 +45,7 @@ fr:
   config_error: Erreur de configuration
   no_config: Veuillez charger / créer une configuration avant de procéder
   cannot_load_config_keep_current: Impossible de charger la configuration. Configuration actuelle conservée
+  config_recovered_from_generation: Le fichier de configuration actuel était inutilisable et a été restauré depuis la génération précédente conservée. Veuillez vérifier vos paramètres et enregistrer à nouveau la configuration.
   snapshot_is_empty: L'instantané est vide
   select_only_one_snapshot: Veuillez sélectionner un seul instantané
   cancel_operation: Etes-vous sûr de vouloir annuler l'opération? Essayez d'éviter d'interrompre les opérations d'écriture

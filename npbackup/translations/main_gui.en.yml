@@ -45,6 +45,7 @@ en:
   config_error: Configuration error
   no_config: Please load / create a configuration before proceeding
   cannot_load_config_keep_current: Cannot load configuration. Keep current configuration
+  config_recovered_from_generation: The current configuration file was unusable and has been recovered from the retained previous generation. Please verify your settings and save the configuration again.
   snapshot_is_empty: Snapshot is empty
   select_only_one_snapshot: Please select only one snapshot
   cancel_operation: Are you sure you want to cancel the operation? Try to avoid interrupting write operations

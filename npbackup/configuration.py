@@ -14,6 +14,7 @@ __version__ = "npbackup 3.1.0+"
 from typing import Callable, Tuple, Optional, List, Any, Union
 import sys
 import os
+import io
 from copy import deepcopy
 from pathlib import Path
 import re
@@ -23,7 +24,6 @@ import uuid
 import gc
 from logging import getLogger
 from ruamel.yaml import YAML
-from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.compat import ordereddict
 from ruamel.yaml.comments import CommentedMap
 from packaging.version import parse as version_parse, InvalidVersion
@@ -40,6 +40,7 @@ from npbackup.key_management import (
     obfuscation,
     public_obfuscation,
 )
+from npbackup import config_transaction
 from npbackup.__version__ import __version__ as MAX_CONF_VERSION
 
 MIN_MIGRATABLE_CONF_VERSION = "3.0.0"
@@ -1297,42 +1298,114 @@ def _migrate_config_dict(
     return convert_to_commented_map(full_config)
 
 
-def _load_config_file(config_file: Path) -> Union[bool, CommentedMap]:
+def _parse_config_bytes(config_bytes: bytes) -> CommentedMap:
     """
-    Checks whether config file is valid
+    Parse raw configuration bytes into a CommentedMap.
+    Raises on anything that is not a valid configuration snapshot.
     """
+    yaml = YAML(typ="rt")
+    full_config = yaml.load(io.BytesIO(config_bytes))
+    if not full_config or not isinstance(full_config, CommentedMap):
+        raise ValueError("configuration is empty or does not contain a mapping")
+    return full_config
+
+
+def _serialize_config_to_bytes(full_config: CommentedMap) -> bytes:
+    """
+    Serialize a configuration mapping to UTF-8 YAML bytes.
+    """
+    stream = io.StringIO()
+    yaml = YAML(typ="rt")
+    yaml.dump(full_config, stream)
+    return stream.getvalue().encode("utf-8")
+
+
+class ConfigLoadResult:
+    """
+    Explicit outcome of load_config_with_result().
+
+    status is one of config_transaction.STATUS_CURRENT, STATUS_LEGACY or
+    STATUS_RECOVERED_PREVIOUS. generations lists every inspected generation
+    (current first, then the single retained previous one) and recovery holds
+    the CommitResult when the current generation had to be rebuilt from the
+    retained previous generation.
+    """
+
+    def __init__(
+        self,
+        full_config: CommentedMap,
+        status: str,
+        message: str = "",
+        generations: Optional[List[config_transaction.GenerationInfo]] = None,
+        recovery: Optional[config_transaction.CommitResult] = None,
+    ) -> None:
+        self.full_config = full_config
+        self.status = status
+        self.message = message
+        self.generations = generations if generations is not None else []
+        self.recovery = recovery
+
+    @property
+    def recovered(self) -> bool:
+        return self.status == config_transaction.STATUS_RECOVERED_PREVIOUS
+
+
+def load_config_with_result(
+    config_file: Path,
+) -> Optional[ConfigLoadResult]:
+    """
+    Loads a versioned configuration file using the newest valid generation.
+
+    When the current generation is corrupt or cannot be parsed but the retained
+    previous generation is valid, it is atomically re-published as the current
+    generation and an explicit recovery result (status / message / generations
+    / recovery) is returned. Configuration migrations and encryption updates
+    are committed through the exact same transactional protocol as GUI saves.
+    """
+    config_file = Path(config_file)
     try:
-        with open(config_file, "r", encoding="utf-8") as file_handle:
-            yaml = YAML(typ="rt")
-            full_config = yaml.load(file_handle)
-            if not full_config or not isinstance(full_config, CommentedMap):
-                logger.critical(f"Config file {config_file} seems empty or invalid !")
-                return False
-            logger.info(
-                f"Loaded config {_get_config_file_checksum(config_file)} in {config_file.absolute()}"
-            )
-            return full_config
+        selection = config_transaction.select_generation(
+            config_file, _parse_config_bytes
+        )
     except OSError as exc:
         logger.critical(f"Cannot load configuration file from {config_file}: {exc}")
         logger.debug("Trace:", exc_info=True)
-        return False
-    except ScannerError as exc:
-        logger.critical(f"Config file {config_file} is not a valid yaml file: {exc}")
-        logger.debug("Trace:", exc_info=True)
-        sys.exit(1)
-
-
-def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
-    full_config = _load_config_file(config_file)
-    if not full_config:
         return None
+
+    if selection.status == config_transaction.STATUS_UNAVAILABLE:
+        existing_generations = [
+            generation
+            for generation in selection.generations
+            if generation.state != config_transaction.STATE_ABSENT
+        ]
+        for generation in existing_generations:
+            logger.critical(
+                f"Configuration generation {generation.path} is unusable: "
+                f"{generation.state} {generation.detail}"
+            )
+        logger.critical(f"No usable configuration generation found for {config_file}")
+        # Preserve historical behavior: a missing configuration file yields
+        # None, whereas existing but invalid/corrupt generations are fatal
+        if existing_generations:
+            sys.exit(1)
+        return None
+
+    full_config = selection.parsed
+    current_generation = selection.generations[0]
+    logger.info(
+        f"Loaded config {_get_config_file_checksum(config_file)} "
+        f"(sha256 {current_generation.checksum_actual}) in {config_file.absolute()}"
+    )
+    if selection.recovered:
+        logger.warning(selection.message)
+
     current_audience = full_config.g("audience")  # type: ignore
     if current_audience and current_audience != CURRENT_AUDIENCE:
         if current_audience not in ["private", "public"]:
             logger.critical(
                 f"Config file {config_file} is for audience {current_audience}, but current audience is {CURRENT_AUDIENCE}."
             )
-            return False
+            return None
         else:
             logger.info(
                 f"Our current audience {CURRENT_AUDIENCE} is different from config file audience {current_audience}, but since it's a known audience, we'll try to migrate it."
@@ -1437,14 +1510,14 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
             logger.critical(
                 f"Config file {config_file} has no configuration version. Is this a valid npbackup config file?"
             )
-            return False
+            return None
         if conf_version < version_parse(
             MIN_MIGRATABLE_CONF_VERSION
         ) or conf_version > version_parse(MAX_CONF_VERSION):
             logger.critical(
                 f"Config file version {str(conf_version)} is not in required version range min={MIN_MIGRATABLE_CONF_VERSION}, max={MAX_CONF_VERSION}"
             )
-            return False
+            return None
         if conf_version < version_parse(MIN_CONF_VERSION):
             try:
                 full_config = _migrate_config_dict(
@@ -1463,7 +1536,7 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
             f"Cannot read conf version from config file {config_file}, which seems bogus: {exc}"
         )
         logger.debug("Trace:", exc_info=True)
-        return False
+        return None
 
     # Check if we need to expand random vars
     is_modified, full_config = has_random_variables(full_config)
@@ -1477,11 +1550,31 @@ def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
     # Inject config UUID for local storage tracking
     full_config.s("uuid", gen_uuid_from_path(config_file))
 
-    # save config file if needed
+    # save config file if needed, using the very same transactional commit
+    # protocol as a regular GUI save
     if config_file_is_updated:
         logger.info("Updating config file")
         save_config(config_file, full_config)
-    return full_config
+
+    return ConfigLoadResult(
+        full_config=full_config,
+        status=selection.status,
+        message=selection.message,
+        generations=selection.generations,
+        recovery=selection.recovery,
+    )
+
+
+def load_config(config_file: Path) -> Union[CommentedMap, bool, None]:
+    """
+    Backward compatible wrapper around load_config_with_result().
+    Callers that need to expose recovery results shall use
+    load_config_with_result() directly.
+    """
+    result = load_config_with_result(config_file)
+    if result is None:
+        return None
+    return result.full_config
 
 
 def save_config(config_file: Path, full_config: CommentedMap) -> bool:
@@ -1503,10 +1596,36 @@ def save_config(config_file: Path, full_config: CommentedMap) -> bool:
         if not full_config:
             logger.critical("Cannot encrypt config file, not saving")
             return False
-        with open(config_file, "w", encoding="utf-8") as file_handle:
 
-            yaml = YAML(typ="rt")
-            yaml.dump(full_config, file_handle)
+        # Validate the complete encrypted snapshot BEFORE anything touches the
+        # disk: it must serialize and parse back as a fully encrypted mapping
+        payload = _serialize_config_to_bytes(full_config)
+        try:
+            verified_snapshot = _parse_config_bytes(payload)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.critical(
+                f"Refusing to save configuration file {config_file}: the "
+                f"encrypted snapshot cannot be parsed back: {exc}"
+            )
+            return False
+        if not is_encrypted(verified_snapshot):
+            logger.critical(
+                f"Refusing to save configuration file {config_file}: snapshot "
+                f"contains unencrypted sensitive options"
+            )
+            return False
+
+        # Single transactional commit protocol shared by GUI saves, wizard
+        # saves and configuration migrations:
+        # restrictive temp file in target directory -> fsync -> atomic replace
+        # with one retained encrypted generation and its checksum
+        commit_result = config_transaction.commit_config(config_file, payload)
+        if not commit_result.success:
+            logger.critical(
+                f"Cannot save configuration file to {config_file}: {commit_result.message}"
+            )
+            return False
+
         # Since yaml is a "pointer object", we need to decrypt after saving
         full_config = crypt_config(
             full_config,
@@ -1517,7 +1636,10 @@ def save_config(config_file: Path, full_config: CommentedMap) -> bool:
         )
         # We also need to extract permissions again
         full_config = extract_permissions_from_full_config(full_config)
-        logger.info(f"Saved configuration file {config_file}")
+        logger.info(
+            f"Saved configuration file {config_file} "
+            f"(sha256 {commit_result.checksum}, {commit_result.bytes_written} bytes)"
+        )
         return True
     except OSError as exc:
         logger.critical(f"Cannot save configuration file to {config_file}: {exc}")

@@ -94,6 +94,24 @@ def popup_wait_for_upgrade(text: str):
     return window
 
 
+def load_config_with_recovery_notice(config_file: Path):
+    """
+    Loads a versioned configuration using the shared transactional load
+    protocol and explicitly warns the user when the current generation was
+    unusable and had to be rebuilt from the retained previous generation.
+    """
+    load_result = npbackup.configuration.load_config_with_result(config_file)
+    if load_result is not None and load_result.recovered:
+        sg.popup(
+            _t("main_gui.config_recovered_from_generation")
+            + "\n\n"
+            + load_result.message,
+            keep_on_top=True,
+            title=_t("generic.warning").capitalize(),
+        )
+    return load_result
+
+
 def about_gui(
     version_string: str,
     config_file: Optional[Path],
@@ -674,13 +692,14 @@ def _main_gui(viewer_mode: bool):
                     continue
                 try:
                     with HideWindow(window):
-                        full_config = npbackup.configuration.load_config(config_file)
+                        load_result = load_config_with_recovery_notice(config_file)
                 except EnvironmentError as exc:
                     popup_error(exc)
                     break
-                if not full_config:
+                if not load_result:
                     popup_error(_t("generic.bad_file"))
                     continue
+                full_config = load_result.full_config
                 break
         window.close()
         return config_file, action
@@ -802,12 +821,12 @@ def _main_gui(viewer_mode: bool):
                 config_exists = False
             else:
                 try:
-                    full_config = npbackup.configuration.load_config(config_file)
+                    load_result = load_config_with_recovery_notice(config_file)
                 except EnvironmentError as exc:
                     popup_error(exc)
                     return None, None
-                if full_config:
-                    return full_config, config_file
+                if load_result:
+                    return load_result.full_config, config_file
         else:
             config_file = Path(f"{SHORT_PRODUCT_NAME.lower()}.conf")
             config_exists = False
@@ -829,18 +848,19 @@ def _main_gui(viewer_mode: bool):
             if config_file:
                 logger.info(f"Using configuration file {config_file}")
                 try:
-                    full_config = npbackup.configuration.load_config(config_file)
+                    load_result = load_config_with_recovery_notice(config_file)
                     GUI_STATUS_IGNORE_ERRORS = True
                 except EnvironmentError as exc:
                     popup_error(exc)
                     break
                 else:
-                    if not full_config:
+                    if not load_result:
                         popup_error(
                             f"{_t('main_gui.config_error')} {config_file}",
                         )
                         config_exists = False
                     else:
+                        full_config = load_result.full_config
                         config_exists = True
                         break
         return full_config, config_file
